@@ -1,0 +1,109 @@
+---
+title: "Impact of time to deep-freezing on cancer tissue metabolomics - data set"
+author: Andreas Mock, National Center for Tumor Diseases (NCT) Heidelberg
+output: github_document
+---
+
+# Getting started
+
+This document requires R version 3.4.2 or higher. For more detailed information about the package requirements see the session information chapter at the end of this document.
+
+# Install package dependencies
+
+```{r setup, warning=F, message=FALSE}
+packages <- c("MultiAssayExperiment","MetaboDiff")
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+# Study set and time to deep-freezing
+
+- 3 cortically located, bulk-resected *IDH1* wild-type glioblastomas
+- time to deep-freezing: 0-180 min
+- two samples per time point 
+
+GBM 1 | GBM 2 | GBM 3
+-----|-------|------
+0 - 0 | 0 - 0 | 0 - 0
+5 - 5 | 5 - 5 | 5 - 5
+10 - 10 | 10 - 10 | 10 - 10
+30 - 30 | 30 - 30 | 30 - 30
+60 - 60 | 60 - 60 | 60 - 60
+180 - 180 |  | 180 - 180
+
+# Load data set
+
+The object `q` is a so called MultiAssayExperiment class[^1] containing the metabolomic data, as well as all the associated metadata. Please refer to the [MetaboDiff package vignette](https://github.com/andreasmock/MetaboDiff) for more information about the rationale of using a MultiAssayExperiment class, as well as an introduction to basic usage.
+
+```{r}
+load("quenching.RData")
+```
+
+We display the summary information of the object by:
+
+```{r}
+q
+```
+
+As we can see from the summary information, the object contains the raw relative metabolomic measurments as provided by Metabolon Inc. A total of 597 named metabolites were identified accross the 34 samples.
+
+# Imputation of missing values
+
+In contrast to other high-throughput technologies, missing values are common in quantitative metabolomic datasets. Imputation is performed by k-nearest neighbor imputation, which could be shown to minimize the effects on the normality and variance of the data as long as the number of missing data does not exceed 40%. The function `knn_impute` adds the slot “impute” to the MultiAssayExperiment object that contains the imputed relative metabolite measurements for all metabolites with raw measurements in more than 60% of cases. We recommend a cutoff of 40% (i.e. 0.4). However the cutoff might be changed according to the discretion of the user.
+
+```{r}
+(q = knn_impute(q, 0.4))
+```
+
+# Normalization
+
+Variance stabilizing normalization (vsn) is used to ensure that the variance remains nearly constant over the measured spectrum.
+
+```{r}
+(q = normalize_met(q))
+```
+
+At this point the data processing is completed with the `MultiAssayExperiment` object containing 4 slots:
+
+- raw - raw relative metabolic measurements as provided by company or core facility
+- imputed - imputed relative metabolic measurements (k-nearest neighbor imputation)
+- norm - normalized relative metabolic measurements (vsn)
+- norm_imputed - normalized and imputed relative metabolic measurements (vsn)
+
+# Exclude GBM3 @ 30 minutes from further analysis
+
+The two pieces of tissue GBM3 at 30 minutes represent two samples with a low tumor content, as well as a high fraction of necrosis and apoptotic cells and were hence excluded from further analysis.
+
+```{r}
+q <- q[,!(q$tumor=="GBM3"&q$time==30)]
+```
+
+# Working with the data object
+
+1) Display sample metadata
+
+```{r}
+colData(q)
+```
+
+2) Normalized and imputed metabolic measurements
+
+```{r}
+head(assay(q[["norm_imputed"]]))
+```
+
+3) Metabolic annotation for normalized and imputed data
+
+```{r}
+rowData(q[["norm_imputed"]])
+```
+
+
+# Session information {.unnumbered}
+
+```{r}
+sessionInfo()
+```
+
+[^1]: Sig M (2017). MultiAssayExperiment: Software for the integration of multi-omics experiments in Bioconductor. R package version 1.2.1
+
+
